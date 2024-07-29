@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+     <meta charset="UTF-8">
+     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+     <title>Speech Recognition and Translation</title>
+     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
+     <style>
+          body {
+               font-family: Arial, sans-serif;
+               display: flex;
+               flex-direction: column;
+               align-items: center;
+               justify-content: center;
+               height: 100vh;
+               margin: 0;
+               background-color: #f5f5f5;
+               /* Light grey background */
+          }
+
+          h1 {
+               color: #333;
+               margin-bottom: 20px;
+          }
+
+          #controls {
+               margin-bottom: 20px;
+          }
+
+          button {
+               background-color: #4CAF50;
+               /* Green */
+               color: white;
+               border: none;
+               padding: 10px 20px;
+               cursor: pointer;
+               margin: 0 5px;
+               transition: background-color 0.3s ease;
+          }
+
+          button:hover {
+               background-color: #45a049;
+               /* Darker green on hover */
+          }
+
+          select {
+               padding: 8px;
+               margin: 0 10px;
+          }
+
+          .loader {
+               border: 4px solid #f3f3f3;
+               border-radius: 50%;
+               border-top: 4px solid #3498db;
+               /* Blue loader */
+               width: 30px;
+               height: 30px;
+               animation: spin 1s linear infinite;
+               display: none;
+          }
+
+          @keyframes spin {
+               0% {
+                    transform: rotate(0deg);
+               }
+
+               100% {
+                    transform: rotate(360deg);
+               }
+          }
+
+          .fadeOut {
+               opacity: 0;
+               transition: opacity 0.5s ease-out;
+          }
+
+          #nativeSpeech,
+          #translatedText {
+               opacity: 0;
+               animation: fadeIn 1s forwards;
+          }
+
+          @keyframes fadeIn {
+               0% {
+                    opacity: 0;
+               }
+
+               100% {
+                    opacity: 1;
+               }
+          }
+
+          /* Animation for the animated SVG */
+          #animated-svg {
+               width: 100px;
+               /* Adjust size as needed */
+               height: auto;
+               margin-top: 20px;
+               opacity: 0;
+               /* Start hidden */
+               transition: opacity 0.3s ease;
+          }
+
+          .animate {
+               opacity: 1;
+               animation: bounce 0.5s ease-in-out infinite;
+               /* Example animation */
+          }
+
+          @keyframes bounce {
+
+               0%,
+               100% {
+                    transform: translateY(0);
+               }
+
+               50% {
+                    transform: translateY(-10px);
+               }
+          }
+     </style>
+     <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+</head>
+
+<body>
+     <h1>Speech Recognition and Translation</h1>
+     <div id="controls">
+          <select id="inputLanguage">
+               <option value="en-US">English</option>
+               <option value="hi-IN">Hindi</option>
+               <option value="te-IN">Telugu</option>
+               <option value="kn-IN">Kannada</option>
+               <option value="pa-IN">Punjabi</option>
+               <option value="bn-IN">Bengali</option>
+               <option value="sa-IN">Sanskrit</option>
+               <option value="ur-IN">Urdu</option>
+               <!-- Add more languages as needed -->
+          </select>
+          <select id="outputLanguage">
+               <option value="en">English</option>
+               <option value="hi">Hindi</option>
+               <option value="te">Telugu</option>
+               <option value="kn">Kannada</option>
+               <option value="pa">Punjabi</option>
+               <option value="bn">Bengali</option>
+               <option value="sa">Sanskrit</option>
+               <option value="ur">Urdu</option>
+               <!-- Add more languages as needed -->
+          </select>
+          <button onclick="startRecording()"><i class="fas fa-microphone"></i> Start Recording</button>
+          <button onclick="stopRecording()"><i class="fas fa-stop"></i> Stop Recording</button>
+     </div>
+     <div class="loader" id="loader"></div>
+     <p id="nativeSpeech"><strong>Native Speech:</strong> <span id="nativeText"></span></p>
+     <p id="translatedText"><strong>Translated Text:</strong> <span id="translatedTextContent"></span></p>
+     <svg version="1.1" id="animated-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" xml:space="preserve">
+          <g id="SVGRepo_bgCarrier" stroke-width="0"></g>
+          <g id="SVGRepo_tracerCarrier" stroke-linecap="round" stroke-linejoin="round"></g>
+          <g id="SVGRepo_iconCarrier">
+               <g>
+                    <path fill="#4CAF50" d="M256,0C115.309,0,0,115.309,0,256s115.309,256,256,256s256-115.309,256-256S396.691,0,256,0z
+                         M256,490.667c-126.475,0-229.333-102.859-229.333-229.333S129.525,32,256,32s229.333,102.859,229.333,229.333
+                         S382.475,490.667,256,490.667z"></path>
+                    <path fill="#FFFFFF" d="M341.333,213.333h-70.635l25.641-25.641c3.192-3.192,3.192-8.364,0-11.556
+                         c-3.192-3.192-8.364-3.192-11.556,0l-42.667,42.667c-3.192,3.192-3.192,8.364,0,11.556l42.667,42.667
+                         c1.585,1.585,3.65,2.386,5.778,2.386s4.192-0.801,5.778-2.386c3.192-3.192,3.192-8.364,0-11.556L270.698,234.667h70.635
+                         c4.71,0,8-3.925,8-8S346.043,213.333,341.333,213.333z"></path>
+               </g>
+          </g>
+     </svg>
+
+     <script>
+          var recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
+          recognition.continuous = true;
+          recognition.interimResults = false;
+
+          recognition.onresult = function (event) {
+               var result = event.results[event.results.length - 1][0].transcript;
+               recognizeAndTranslate(result);
+          };
+
+          recognition.onerror = function (event) {
+               console.error('Error occurred in recognition: ' + event.error);
+          };
+
+          function startRecording() {
+               recognition.lang = document.getElementById('inputLanguage').value;
+               recognition.start();
+               document.getElementById('loader').style.display = 'block';
+               document.getElementById('nativeSpeech').classList.remove('fadeOut');
+               document.getElementById('translatedText').classList.remove('fadeOut');
+               document.getElementById('animated-svg').classList.add('animate');
+          }
+
+          function stopRecording() {
+               recognition.stop();
+               document.getElementById('loader').style.display = 'none';
+               document.getElementById('nativeSpeech').classList.add('fadeOut');
+               document.getElementById('translatedText').classList.add('fadeOut');
+               document.getElementById('animated-svg').classList.remove('animate');
+          }
+
+          function recognizeAndTranslate(text) {
+               var inputLanguage = document.getElementById('inputLanguage').value;
+               var outputLanguage = document.getElementById('outputLanguage').value;
+               $.ajax({
+                    type: 'POST',
+                    url: '/recognize',
+                    data: {
+                         text: text,
+                         input_language: inputLanguage,
+                         output_language: outputLanguage
+                    },
+                    success: function (response) {
+                         document.getElementById('nativeText').textContent = response.query;
+                         document.getElementById('translatedTextContent').textContent = response.translated_text;
+                         document.getElementById('loader').style.display = 'none';
+                         document.getElementById('nativeSpeech').style.animation = 'fadeIn 1s forwards';
+                         document.getElementById('translatedText').style.animation = 'fadeIn 1s forwards';
+                         speakText(response.translated_text);
+                    },
+                    error: function (error) {
+                         console.error('Error:', error);
+                         document.getElementById('nativeText').textContent = error.responseJSON.error;
+                         document.getElementById('translatedTextContent').textContent = '';
+                         document.getElementById('loader').style.display = 'none';
+                    }
+               });
+          }
+
+          function speakText(text) {
+               var utterance = new SpeechSynthesisUtterance(text);
+               utterance.lang = document.getElementById('outputLanguage').value; // Set output language dynamically
+               window.speechSynthesis.speak(utterance);
+          }
+
+          function getLocation() {
+               if (navigator.geolocation) {
+                    navigator.geolocation.getCurrentPosition(setLanguageBasedOnLocation, showError);
+               } else {
+                    alert("Geolocation is not supported by this browser.");
+               }
+          }
+
+          function setLanguageBasedOnLocation(position) {
+               var lat = position.coords.latitude;
+               var lon = position.coords.longitude;
+
+               $.get('https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=' + lat + '&longitude=' + lon + '&localityLanguage=en', function (data) {
+                    var state = data.principalSubdivision;
+                    var languageMap = {
+                         'Karnataka': 'kn',
+                         'Maharashtra': 'hi',
+                         'Punjab': 'pa',
+                         'West Bengal': 'bn',
+                         'Uttar Pradesh': 'hi',
+                         // Add other states and their primary languages here
+                    };
+
+                    var languageCode = languageMap[state];
+                    if (languageCode) {
+                         document.getElementById('outputLanguage').value = languageCode;
+                    }
+               });
+          }
+
+          function showError(error) {
+               switch (error.code) {
+                    case error.PERMISSION_DENIED:
+                         alert("User denied the request for Geolocation.");
+                         break;
+                    case error.POSITION_UNAVAILABLE:
+                         alert("Location information is unavailable.");
+                         break;
+                    case error.TIMEOUT:
+                         alert("The request to get user location timed out.");
+                         break;
+                    case error.UNKNOWN_ERROR:
+                         alert("An unknown error occurred.");
+                         break;
+               }
+          }
+
+          window.onload = function () {
+               getLocation();
+               // Optionally start speech recognition on load
+               // startRecording();
+          };
+     </script>
+</body>
+
+</html>
